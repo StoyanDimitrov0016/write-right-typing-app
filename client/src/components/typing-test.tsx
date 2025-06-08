@@ -1,15 +1,26 @@
 import { useMemo, useState, type ChangeEvent } from "react";
 import { WORDLIST } from "../wordlist";
 import { getRandomWordlist } from "../utils/get-random-wordlist";
+import {
+  getTimeDifferenceInMilliseconds,
+  getTimeDifferenceInSeconds,
+} from "@/utils/time-differences";
 
 type Character = {
   text: string;
   state: "correct" | "incorrect" | "untyped";
 };
 
+type Timestamp = {
+  start?: Date;
+  end?: Date;
+};
+
+const WORDLIST_LENGTH = 5;
+
 export default function TypingTest() {
   const wordlist = useMemo(() => {
-    return getRandomWordlist(WORDLIST, WORDLIST.length);
+    return getRandomWordlist(WORDLIST, WORDLIST_LENGTH);
   }, []);
 
   const [characters, setCharacters] = useState<Character[]>(() => {
@@ -20,12 +31,28 @@ export default function TypingTest() {
   });
 
   const [input, setInput] = useState<string>("");
+  const [timestamp, setTimestamp] = useState<Timestamp>({});
+  const [isTestActive, setIsTestActive] = useState<boolean>(false);
 
   const onChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     const input = event.target.value;
     const inputCharacters = input.split("");
-
     const charactersCopy = characters.slice();
+
+    if (inputCharacters.length === 1) {
+      setTimestamp({ start: new Date(), end: undefined });
+      setIsTestActive(true);
+    }
+
+    if (
+      inputCharacters.length === charactersCopy.length + 1 &&
+      inputCharacters[inputCharacters.length - 1] === " " &&
+      isTestActive
+    ) {
+      setTimestamp((prev) => ({ ...prev, end: new Date() }));
+      setIsTestActive(false);
+      return;
+    }
 
     for (let i = 0; i < inputCharacters.length; i++) {
       const typedCharacter = inputCharacters[i];
@@ -46,31 +73,67 @@ export default function TypingTest() {
     setCharacters(charactersCopy);
   };
 
+  const getLabel = () => {
+    if (isTestActive || !timestamp || !timestamp.start || !timestamp.end) {
+      return;
+    }
+
+    const milliseconds = getTimeDifferenceInMilliseconds(timestamp.start, timestamp.end);
+    const seconds = getTimeDifferenceInSeconds(timestamp.start, timestamp.end);
+
+    const restMilliseconds = Math.floor(milliseconds - seconds * 1000);
+
+    return (
+      <p>
+        <span>
+          Accomplished in {seconds}.{restMilliseconds} seconds
+        </span>
+      </p>
+    );
+  };
+
   return (
-    <section>
-      <section>
-        {characters.map((char, index) => {
-          return (
+    <article className="space-y-6">
+      <section className="p-4 border rounded-md bg-muted/20">
+        <h2 className="text-lg font-semibold mb-2">Type the following sequence:</h2>
+        <div
+          className="flex flex-wrap text-lg font-mono leading-relaxed break-words"
+          aria-label="Typing area"
+        >
+          {characters.map((char, index) => (
             <span
+              key={index}
               className={
                 char.state === "correct"
-                  ? "text-green-500"
+                  ? "text-green-600"
                   : char.state === "incorrect"
-                  ? "text-red-500"
-                  : ""
+                  ? "text-red-600"
+                  : "text-gray-700"
               }
-              key={index}
             >
-              {char.text}
+              {char.text === " " ? "␣" : char.text}
             </span>
-          );
-        })}
+          ))}
+        </div>
       </section>
+
+      {getLabel()}
+
       <section>
-        <form>
-          <textarea value={input} onChange={onChange} />
+        <form className="space-y-2">
+          <label htmlFor="typing-input" className="block text-sm font-medium">
+            Your input
+          </label>
+          <textarea
+            id="typing-input"
+            value={input}
+            onChange={onChange}
+            className="w-full p-2 border rounded-md resize-none font-mono bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            rows={5}
+            placeholder="Start typing here..."
+          />
         </form>
       </section>
-    </section>
+    </article>
   );
 }
